@@ -1,0 +1,18 @@
+2025-04-08 15:56:52,711 INFO [server.py:341] server listening on 0.0.0.0:10003
+2025-04-08 16:13:14,186 INFO [server.py:529] connection open
+2025-04-08 16:13:14,187 INFO [stt_ws_api.py:272] Connected: ('192.168.1.102', 35670). Number of connections: 1/20
+2025-04-08 16:13:14,576 INFO [stt_ws_api.py:246] ('192.168.1.102', 35670) disconnected
+2025-04-08 16:13:14,577 INFO [stt_ws_api.py:254] Disconnected: ('192.168.1.102', 35670). Number of connections: 0/20
+2025-04-08 16:13:41,956 INFO [server.py:529] connection open
+2025-04-08 16:13:41,957 INFO [stt_ws_api.py:272] Connected: ('192.168.1.102', 35672). Number of connections: 1/20
+2025-04-08 16:19:55,873 INFO [stt_ws_api.py:246] ('192.168.1.102', 35672) disconnected
+2025-04-08 16:19:55,874 INFO [stt_ws_api.py:254] Disconnected: ('192.168.1.102', 35672). Number of connections: 0/20
+2025-04-08 16:20:18,390 INFO [server.py:529] connection open
+2025-04-08 16:20:18,391 INFO [stt_ws_api.py:272] Connected: ('192.168.1.102', 35772). Number of connections: 1/20
+2025-04-08 16:23:47,795 INFO [stt_ws_api.py:246] ('192.168.1.102', 35772) disconnected
+2025-04-08 16:23:47,795 INFO [stt_ws_api.py:254] Disconnected: ('192.168.1.102', 35772). Number of connections: 0/20
+2025-04-08 16:24:10,475 INFO [server.py:529] connection open
+2025-04-08 16:24:10,476 INFO [stt_ws_api.py:272] Connected: ('192.168.1.102', 35834). Number of connections: 1/20
+2025-04-08 16:24:37,452 INFO [stt_ws_api.py:254] Disconnected: ('192.168.1.102', 35834). Number of connections: 0/20
+2025-04-08 16:24:37,452 INFO [server.py:440] server closing
+2025-04-08 16:24:37,452 INFO [server.py:473] server closed

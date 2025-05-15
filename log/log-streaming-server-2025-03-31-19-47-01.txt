@@ -1,0 +1,19 @@
+2025-03-31 19:47:07,408 INFO [server.py:341] server listening on 0.0.0.0:10007
+2025-03-31 19:47:14,191 INFO [server.py:529] connection open
+2025-03-31 19:47:14,192 INFO [test2.py:298] Connected: ('10.109.246.210', 37598). Number of connections: 0/20
+2025-03-31 19:47:29,113 INFO [test2.py:281] Disconnected: ('10.109.246.210', 37598). Number of connections: -1/20
+2025-03-31 19:47:29,114 ERROR [server.py:378] connection handler failed
+Traceback (most recent call last):
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/websockets/asyncio/server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "/data/zdg/sherpa-onnx/test2.py", line 274, in handle_connection
+    await self.handle_connection_impl(socket,translate_socket)
+  File "/data/zdg/sherpa-onnx/test2.py", line 324, in handle_connection_impl
+    samples = await self.recv_audio_samples(socket)
+  File "/data/zdg/sherpa-onnx/test2.py", line 380, in recv_audio_samples
+    message = await socket.recv()
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/websockets/asyncio/connection.py", line 322, in recv
+    raise self.protocol.close_exc from self.recv_exc
+websockets.exceptions.ConnectionClosedOK: received 1000 (OK); then sent 1000 (OK)
+2025-03-31 19:54:55,870 INFO [server.py:440] server closing
+2025-03-31 19:54:55,870 INFO [server.py:473] server closed

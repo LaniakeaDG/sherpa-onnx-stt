@@ -1,0 +1,20 @@
+2025-03-31 20:27:08,424 INFO [server.py:341] server listening on 0.0.0.0:10007
+2025-03-31 20:27:13,055 INFO [server.py:529] connection open
+2025-03-31 20:27:13,055 INFO [test2.py:299] Connected: ('10.109.246.210', 36880). Number of connections: 0/20
+2025-03-31 20:27:13,539 INFO [test2.py:282] Disconnected: ('10.109.246.210', 36880). Number of connections: -1/20
+2025-03-31 20:27:13,540 ERROR [server.py:378] connection handler failed
+Traceback (most recent call last):
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/websockets/asyncio/server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "/data/zdg/sherpa-onnx/test2.py", line 275, in handle_connection
+    await self.handle_connection_impl(socket,translate_socket)
+  File "/data/zdg/sherpa-onnx/test2.py", line 351, in handle_connection_impl
+    self.recognizer.decode_streams(stream)
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/sherpa_onnx/online_recognizer.py", line 819, in decode_streams
+    self.recognizer.decode_streams(ss)
+TypeError: decode_streams(): incompatible function arguments. The following argument types are supported:
+    1. (self: _sherpa_onnx.OnlineRecognizer, arg0: list[_sherpa_onnx.OnlineStream]) -> None
+
+Invoked with: <_sherpa_onnx.OnlineRecognizer object at 0x7f250e992e30>, <_sherpa_onnx.OnlineStream object at 0x7f250e9b9b70>
+2025-03-31 20:27:19,005 INFO [server.py:440] server closing
+2025-03-31 20:27:19,005 INFO [server.py:473] server closed

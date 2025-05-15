@@ -1,0 +1,33 @@
+2025-04-01 10:52:26,417 INFO [server.py:341] server listening on 0.0.0.0:10003
+2025-04-01 10:55:23,508 INFO [server.py:529] connection open
+2025-04-01 10:55:23,508 INFO [stt_ws_api.py:269] Connected: ('192.168.1.101', 48970). Number of connections: 1/20
+2025-04-01 10:55:39,346 INFO [stt_ws_api.py:251] Disconnected: ('192.168.1.101', 48970). Number of connections: 0/20
+2025-04-01 10:55:39,346 ERROR [server.py:378] connection handler failed
+Traceback (most recent call last):
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/websockets/asyncio/server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "/data/zdg/sherpa-onnx/stt_ws_api.py", line 244, in handle_connection
+    await self.handle_connection_impl(socket,translate_socket)
+  File "/data/zdg/sherpa-onnx/stt_ws_api.py", line 315, in handle_connection_impl
+    stream.accept_waveform(sample_rate=self.sample_rate, waveform=samples)
+TypeError: accept_waveform(): incompatible function arguments. The following argument types are supported:
+    1. (self: _sherpa_onnx.OnlineStream, sample_rate: float, waveform: list[float]) -> None
+
+Invoked with: <_sherpa_onnx.OnlineStream object at 0x7f5e4e191870>; kwargs: sample_rate=16000, waveform=None
+2025-04-01 10:57:25,737 INFO [server.py:529] connection open
+2025-04-01 10:57:25,738 INFO [stt_ws_api.py:269] Connected: ('192.168.1.101', 45182). Number of connections: 1/20
+2025-04-01 10:57:32,696 INFO [stt_ws_api.py:251] Disconnected: ('192.168.1.101', 45182). Number of connections: 0/20
+2025-04-01 10:57:32,697 ERROR [server.py:378] connection handler failed
+Traceback (most recent call last):
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/websockets/asyncio/server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "/data/zdg/sherpa-onnx/stt_ws_api.py", line 244, in handle_connection
+    await self.handle_connection_impl(socket,translate_socket)
+  File "/data/zdg/sherpa-onnx/stt_ws_api.py", line 315, in handle_connection_impl
+    stream.accept_waveform(sample_rate=self.sample_rate, waveform=samples)
+TypeError: accept_waveform(): incompatible function arguments. The following argument types are supported:
+    1. (self: _sherpa_onnx.OnlineStream, sample_rate: float, waveform: list[float]) -> None
+
+Invoked with: <_sherpa_onnx.OnlineStream object at 0x7f5e4e1a9170>; kwargs: sample_rate=16000, waveform=None
+2025-04-01 10:58:08,587 INFO [server.py:440] server closing
+2025-04-01 10:58:08,588 INFO [server.py:473] server closed

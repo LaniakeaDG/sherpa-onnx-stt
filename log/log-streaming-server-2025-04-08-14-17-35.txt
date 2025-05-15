@@ -1,0 +1,3 @@
+2025-04-08 14:17:41,584 INFO [server.py:341] server listening on 0.0.0.0:10003
+2025-04-08 14:22:17,473 INFO [server.py:440] server closing
+2025-04-08 14:22:17,473 INFO [server.py:473] server closed

@@ -1,0 +1,7 @@
+2025-04-23 19:52:28,918 INFO [server.py:341] server listening on 0.0.0.0:10003
+2025-04-23 19:58:44,478 INFO [server.py:529] connection open
+2025-04-23 19:58:44,479 INFO [stt_ws_api.py:272] Connected: ('10.129.106.109', 57838). Number of connections: 1/20
+2025-04-23 20:06:37,450 INFO [stt_ws_api.py:246] ('10.129.106.109', 57838) disconnected
+2025-04-23 20:06:37,452 INFO [stt_ws_api.py:254] Disconnected: ('10.129.106.109', 57838). Number of connections: 0/20
+2025-04-23 20:27:42,853 INFO [server.py:440] server closing
+2025-04-23 20:27:42,854 INFO [server.py:473] server closed

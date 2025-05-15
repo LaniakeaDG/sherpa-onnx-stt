@@ -1,0 +1,17 @@
+2025-03-31 17:14:57,383 INFO [server.py:341] server listening on 0.0.0.0:10007
+2025-03-31 17:15:04,927 INFO [server.py:529] connection open
+2025-03-31 17:15:04,927 INFO [test2.py:270] Connected: ('10.109.246.210', 38556). Number of connections: 0/20
+2025-03-31 17:15:04,929 INFO [test2.py:254] Disconnected: ('10.109.246.210', 38556). Number of connections: -1/20
+2025-03-31 17:15:04,929 ERROR [server.py:378] connection handler failed
+Traceback (most recent call last):
+  File "/home/zdg/.conda/envs/sherpa-onnx/lib/python3.10/site-packages/websockets/asyncio/server.py", line 376, in conn_handler
+    await self.handler(connection)
+  File "/data/zdg/sherpa-onnx/test2.py", line 247, in handle_connection
+    await self.handle_connection_impl(socket)
+  File "/data/zdg/sherpa-onnx/test2.py", line 279, in handle_connection_impl
+    samples = await self.recv_audio_samples(socket)
+  File "/data/zdg/sherpa-onnx/test2.py", line 336, in recv_audio_samples
+    return np.frombuffer(message, dtype=np.float32)
+TypeError: a bytes-like object is required, not 'str'
+2025-03-31 17:15:15,761 INFO [server.py:440] server closing
+2025-03-31 17:15:15,762 INFO [server.py:473] server closed

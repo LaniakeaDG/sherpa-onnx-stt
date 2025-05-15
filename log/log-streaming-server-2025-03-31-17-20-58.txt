@@ -1,0 +1,6 @@
+2025-03-31 17:21:04,507 INFO [server.py:341] server listening on 0.0.0.0:10007
+2025-03-31 17:21:08,949 INFO [server.py:529] connection open
+2025-03-31 17:21:08,950 INFO [test2.py:270] Connected: ('10.109.246.210', 45530). Number of connections: 0/20
+2025-03-31 17:24:32,747 INFO [test2.py:254] Disconnected: ('10.109.246.210', 45530). Number of connections: -1/20
+2025-03-31 17:24:32,747 INFO [server.py:440] server closing
+2025-03-31 17:24:32,747 INFO [server.py:473] server closed
