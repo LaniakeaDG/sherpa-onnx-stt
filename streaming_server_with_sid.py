@@ -383,10 +383,6 @@ class StreamingServer(object):
                     continue  # 跳过空音频段
                 # VAD分段
                 buffer = np.concatenate([buffer, samples])
-                while len(buffer) > self.window_size:
-                    self.vad.accept_waveform(buffer[:self.window_size])
-                    buffer = buffer[self.window_size:]
-                log_with_timestamp("VAD accepted")
                 
                 stream.accept_waveform(sample_rate=self.sample_rate, waveform=samples)
                 while self.recognizer.is_ready(stream):
@@ -405,9 +401,13 @@ class StreamingServer(object):
                             "speaker" : 1
                         }
                         self.recognizer.reset(stream)
+                        
                         if result != '':
-                            # 说话人识别逻辑
                             # 处理VAD分段
+                            while len(buffer) > self.window_size:
+                                self.vad.accept_waveform(buffer[:self.window_size])
+                                buffer = buffer[self.window_size:]
+                            log_with_timestamp("VAD accepted")
                             vad_segments = []
                             while not self.vad.empty():
                                 vad_samples = self.vad.front.samples
@@ -415,7 +415,8 @@ class StreamingServer(object):
                                 self.vad.pop()
                                 # 过滤静音和过短段
                                 vad_segments.append(vad_samples)
-                            log_with_timestamp("VAD processing ended")
+                            log_with_timestamp(f"VAD processing ended, vad_segment length: {len(vad_segments)}")
+                            # 说话人识别逻辑
                             if len(vad_segments) > 0:
                                 all_samples = np.concatenate(vad_segments)
                                 stream_sp = extractor.create_stream()
