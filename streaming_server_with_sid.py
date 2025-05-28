@@ -1,58 +1,3 @@
-#!/usr/bin/env python3
-# Copyright      2022-2023  Xiaomi Corp.
-#
-"""
-A server for streaming ASR recognition. By streaming it means the audio samples
-are coming in real-time. You don't need to wait until all audio samples are
-captured before sending them for recognition.
-
-It supports multiple clients sending at the same time.
-
-Usage:
-    ./streaming_server.py --help
-
-Example:
-
-(1) Without a certificate
-
-python3 ./python-api-examples/streaming_server.py \
-  --encoder ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/encoder-epoch-99-avg-1.onnx \
-  --decoder ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/decoder-epoch-99-avg-1.onnx \
-  --joiner ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/joiner-epoch-99-avg-1.onnx \
-  --tokens ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/tokens.txt
-
-(2) With a certificate
-
-(a) Generate a certificate first:
-
-    cd python-api-examples/web
-    ./generate-certificate.py
-    cd ../..
-
-(b) Start the server
-
-python3 ./python-api-examples/streaming_server.py \
-  --encoder ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/encoder-epoch-99-avg-1.onnx \
-  --decoder ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/decoder-epoch-99-avg-1.onnx \
-  --joiner ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/joiner-epoch-99-avg-1.onnx \
-  --tokens ./sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/tokens.txt \
-  --certificate ./python-api-examples/web/cert.pem
-
-Please refer to
-https://k2-fsa.github.io/sherpa/onnx/pretrained_models/online-transducer/index.html
-https://k2-fsa.github.io/sherpa/onnx/pretrained_models/wenet/index.html
-to download pre-trained models.
-
-The model in the above help messages is from
-https://k2-fsa.github.io/sherpa/onnx/pretrained_models/online-transducer/zipformer-transducer-models.html#csukuangfj-sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20-bilingual-chinese-english
-
-To use a WeNet streaming Conformer CTC model, please use
-
-python3 ./python-api-examples/streaming_server.py \
-  --tokens=./sherpa-onnx-zh-wenet-wenetspeech/tokens.txt \
-  --wenet-ctc=./sherpa-onnx-zh-wenet-wenetspeech/model-streaming.onnx
-"""
-
 import argparse
 import asyncio
 import http
@@ -207,7 +152,8 @@ class StreamingServer(object):
         self.vad_config.silero_vad.min_speech_duration = 0.25
         self.vad_config.sample_rate = self.sample_rate
         self.vad = sherpa_onnx.VoiceActivityDetector(self.vad_config, buffer_size_in_seconds=100)
-        self.window_size = self.vad_config.silero_vad.window_size
+        # self.window_size = self.vad_config.silero_vad.window_size #512-32ms
+        self.window_size = 480 #30ms
 
     async def stream_consumer_task(self):
         """This function extracts streams from the queue, batches them up, sends
@@ -351,6 +297,7 @@ class StreamingServer(object):
         if conn_id not in self.speakers:
             self.speakers[conn_id] = None  # 初始未注册
         buffer = np.array([], dtype=np.float32)
+        buffer_comp = np.array([], dtype=np.float32)
 
         #注册消息
         message = await socket.recv()
@@ -383,6 +330,11 @@ class StreamingServer(object):
                     continue  # 跳过空音频段
                 # VAD分段
                 buffer = np.concatenate([buffer, samples])
+                buffer_comp = np.concatenate([buffer, samples])
+                while len(buffer) > self.window_size:
+                    self.vad.accept_waveform(buffer[:self.window_size])
+                    buffer = buffer[self.window_size:]
+                log_with_timestamp(f"VAD accepted, buffer size:{len(buffer)}")
                 
                 stream.accept_waveform(sample_rate=self.sample_rate, waveform=samples)
                 while self.recognizer.is_ready(stream):
@@ -393,21 +345,12 @@ class StreamingServer(object):
                     # 只在端点检测时做说话人识别
                     else:
                         log_with_timestamp(f"Detect endpoint, result:{result}")
-                        message = {
-                            "id" : "client_000",
-                            "content": result,
-                            "msg_id": segment,
-                            "process_time" : time.time() -request_time,
-                            "speaker" : 1
-                        }
+                        
                         self.recognizer.reset(stream)
                         
                         if result != '':
                             # 处理VAD分段
-                            while len(buffer) > self.window_size:
-                                self.vad.accept_waveform(buffer[:self.window_size])
-                                buffer = buffer[self.window_size:]
-                            log_with_timestamp("VAD accepted")
+                            
                             vad_segments = []
                             while not self.vad.empty():
                                 vad_samples = self.vad.front.samples
@@ -416,6 +359,9 @@ class StreamingServer(object):
                                 # 过滤静音和过短段
                                 vad_segments.append(vad_samples)
                             log_with_timestamp(f"VAD processing ended, vad_segment length: {len(vad_segments)}")
+                            if len(vad_segments) == 0:
+                                vad_segments.append(buffer_comp)
+                                buffer_comp = np.array([], dtype=np.float32)
                             # 说话人识别逻辑
                             if len(vad_segments) > 0:
                                 all_samples = np.concatenate(vad_segments)
@@ -439,6 +385,13 @@ class StreamingServer(object):
                                     name = manager.search(embedding, threshold=0.3)
                                     if not name or name != conn_id:
                                         log_with_timestamp("[INFO] Speaker change detected")
+                                        message = {
+                                            "id" : "client_000",
+                                            "content": result,
+                                            "msg_id": segment,
+                                            "process_time" : time.time() -request_time,
+                                            "speaker" : 1
+                                        }
                                         print(message)
                                         await translate_socket.send(json.dumps(message))
                                         await socket.send(json.dumps(message))
