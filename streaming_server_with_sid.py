@@ -77,6 +77,9 @@ def is_english(text):
             return re.match(r'[a-zA-Z]',ch)
     return None
 
+def log_with_timestamp(message):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}] {message}")
+
 def create_recognizer():
     tokens ='./sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16/tokens.txt'
     encoder ='./sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16/encoder-epoch-99-avg-1.onnx'
@@ -273,7 +276,7 @@ class StreamingServer(object):
         TRANSLATE_SERVER_URI = "ws://localhost:8765"
         try:
             async with websockets.connect(TRANSLATE_SERVER_URI) as translate_socket:
-                print("Connected to translate server!")
+                print("[INFO] Connected to translate server")
                 # 发送注册消息（客户端启动时自动发送）
                 register_msg = {
                     "id": "client_000",
@@ -281,14 +284,14 @@ class StreamingServer(object):
                     "des": "STT"
                 }
                 await translate_socket.send(json.dumps(register_msg))
-                print(f"Sent registration: {register_msg}")
+                print(f"[INFO] Sent registration: {register_msg}")
 
                 async with websockets.serve(
                     lambda ws: self.handle_connection(ws, translate_socket),
                     host="0.0.0.0",
                     port=port,
                 ):
-                    print(f"WebSocket server started on ws://localhost:{port}")
+                    print(f"[INFO] WebSocket server started on ws://localhost:{port}")
                     await asyncio.Future()  # run forever
 
                 await asyncio.gather(*tasks)  # not reachable
@@ -352,7 +355,7 @@ class StreamingServer(object):
         #注册消息
         message = await socket.recv()
         data = json.loads(message)
-        print(f"Received message from {socket.remote_address}")
+        log_with_timestamp(f"Received message from {socket.remote_address}")
                 
         # 如果是注册消息，保存客户端信息
         if "id" in data and "type" in data and "des" in data:
@@ -362,88 +365,128 @@ class StreamingServer(object):
                 "type": data["type"],
                 "des": data["des"]
             }
-            print(f"Client registered: {client_info}")
+            print(f"[INFO] Client registered: {client_info}")
 
         while True:
-            samples = await self.recv_audio_samples(socket)
-            request_time = time.time()
-            
-            if samples is None or len(samples) == 0:
-                continue  # 跳过空音频段
-            # VAD分段
-            buffer = np.concatenate([buffer, samples])
-            while len(buffer) > self.window_size:
-                self.vad.accept_waveform(buffer[:self.window_size])
-                buffer = buffer[self.window_size:]
-            # 只在端点检测时做说话人识别
-            stream.accept_waveform(sample_rate=self.sample_rate, waveform=samples)
-            while self.recognizer.is_ready(stream):
-                await self.compute_and_decode(stream)
-                result = self.recognizer.get_result(stream)
-                print(result)
+            code, data = await self.recv_audio_samples(socket)
+
+            if code == 1:
+                action = data
+                if action == 'change_host':
+                    self.speakers[conn_id] = None
+                    log_with_timestamp(f"[INFO] Host changed by {conn_id}")
+            else:
+                samples = data
+                request_time = time.time()
                 
-                if self.recognizer.is_endpoint(stream):
-                    message = {
-                        "id" : "client_000",
-                        "content": result,
-                        "msg_id": segment,
-                        "process_time" : time.time() -request_time
-                    }
-                    self.recognizer.reset(stream)
-                    if result != '':
-                        # 说话人识别逻辑
-                        # 处理VAD分段
-                        vad_segments = []
-                        while not self.vad.empty():
-                            vad_samples = self.vad.front.samples
-                            print(f"vad_samples: {len(vad_samples)}")
-                            self.vad.pop()
-                            # 过滤静音和过短段
-                            vad_segments.append(vad_samples)
-                        if len(vad_segments) > 0:
-                            all_samples = np.concatenate(vad_segments)
-                            stream_sp = extractor.create_stream()
-                            stream_sp.accept_waveform(sample_rate=self.sample_rate, waveform=all_samples)
-                            stream_sp.input_finished()
-                            embedding = extractor.compute(stream_sp)
-                            embedding = np.array(embedding)
-                            if self.speakers[conn_id] is None:
-                                # 第一次注册
-                                self.speakers[conn_id] = embedding
-                                manager.add(conn_id, embedding)
-                                print(f"注册说话人: {conn_id}")
-                            else:
-                                name = manager.search(embedding, threshold=0.3)
-                                if not name or name != conn_id:
-                                    print(f"检测到说话人变化")
-                                    print(message)
-                                    await translate_socket.send(json.dumps(message))
+                if samples is None or len(samples) == 0:
+                    continue  # 跳过空音频段
+                # VAD分段
+                buffer = np.concatenate([buffer, samples])
+                while len(buffer) > self.window_size:
+                    self.vad.accept_waveform(buffer[:self.window_size])
+                    buffer = buffer[self.window_size:]
+                log_with_timestamp("VAD accepted")
+                
+                stream.accept_waveform(sample_rate=self.sample_rate, waveform=samples)
+                while self.recognizer.is_ready(stream):
+                    if not self.recognizer.is_endpoint(stream):
+                        await self.compute_and_decode(stream)
+                        result = self.recognizer.get_result(stream)
+                        log_with_timestamp(result)
+                    # 只在端点检测时做说话人识别
+                    else:
+                        log_with_timestamp(f"Detect endpoint, result:{result}")
+                        message = {
+                            "id" : "client_000",
+                            "content": result,
+                            "msg_id": segment,
+                            "process_time" : time.time() -request_time,
+                            "speaker" : 1
+                        }
+                        self.recognizer.reset(stream)
+                        if result != '':
+                            # 说话人识别逻辑
+                            # 处理VAD分段
+                            vad_segments = []
+                            while not self.vad.empty():
+                                vad_samples = self.vad.front.samples
+                                print(f"vad_samples: {len(vad_samples)}")
+                                self.vad.pop()
+                                # 过滤静音和过短段
+                                vad_segments.append(vad_samples)
+                            log_with_timestamp("VAD processing ended")
+                            if len(vad_segments) > 0:
+                                all_samples = np.concatenate(vad_segments)
+                                stream_sp = extractor.create_stream()
+                                stream_sp.accept_waveform(sample_rate=self.sample_rate, waveform=all_samples)
+                                stream_sp.input_finished()
+                                embedding = extractor.compute(stream_sp)
+                                embedding = np.array(embedding)
+                                log_with_timestamp("stream_sp compute")
+                                if self.speakers[conn_id] is None:
+                                    # 第一次注册
+                                    self.speakers[conn_id] = embedding
+                                    manager.add(conn_id, embedding)
+                                    print(f"[INFO] Registered speaker: {conn_id}")
+                                    message = {
+                                        "type": "host_changed",
+                                        "message": "Host has been successfully changed."
+                                    }
                                     await socket.send(json.dumps(message))
-                                    if is_english(result):
-                                        message = {
-                                            "id" : "client_000",
-                                            "content": "<|EN|>",
-                                            "msg_id": segment,
-                                            "process_time" : time.time() -request_time
-                                        }
-                                    else:
-                                        message = {
-                                            "id" : "client_000",
-                                            "content": "<|ZH|>",
-                                            "msg_id": segment,
-                                            "process_time" : time.time() -request_time
-                                        }
-                                    await socket.send(json.dumps(message))
-                                    
-                                    segment += 1                       
                                 else:
-                                    print("说话人一致")    
+                                    name = manager.search(embedding, threshold=0.3)
+                                    if not name or name != conn_id:
+                                        log_with_timestamp("[INFO] Speaker change detected")
+                                        print(message)
+                                        await translate_socket.send(json.dumps(message))
+                                        await socket.send(json.dumps(message))
+                                        if is_english(result):
+                                            message = {
+                                                "id" : "client_000",
+                                                "content": "<|EN|>",
+                                                "msg_id": segment,
+                                                "process_time" : time.time() -request_time,
+                                                "speaker" : 1
+                                            }
+                                        else:
+                                            message = {
+                                                "id" : "client_000",
+                                                "content": "<|ZH|>",
+                                                "msg_id": segment,
+                                                "process_time" : time.time() -request_time,
+                                                "speaker" : 1
+                                            }
+                                        await socket.send(json.dumps(message))
+                                        
+                                        segment += 1                       
+                                    else:
+                                        log_with_timestamp("[INFO] Speaker remains the same")  
+                                        message["speaker"] = 0
+                                        print(message)
+                                        await socket.send(json.dumps(message))
+                                        if is_english(result):
+                                            message = {
+                                                "id" : "client_000",
+                                                "content": "<|EN|>",
+                                                "msg_id": segment,
+                                                "process_time" : time.time() -request_time,
+                                                "speaker" : 0
+                                            }
+                                        else:
+                                            message = {
+                                                "id" : "client_000",
+                                                "content": "<|ZH|>",
+                                                "msg_id": segment,
+                                                "process_time" : time.time() -request_time,
+                                                "speaker" : 0
+                                            }
                         
   
     async def recv_audio_samples(
         self,
         socket: websockets.WebSocketServerProtocol,
-    ) -> Optional[np.ndarray]:
+    ):
         """Receive a tensor from the client.
 
         Each message contains either a bytes buffer containing audio samples
@@ -458,11 +501,17 @@ class StreamingServer(object):
         """
         message = await socket.recv()
         data = json.loads(message)
+        # print(data)
+        if "action" in data:
+            action = data["action"]
+            if action:
+                log_with_timestamp(f"Received message from {socket.remote_address}, action: {action}")
+                return 1, action
         msg_id = data["msg_id"]
-        print(f"Received message from {socket.remote_address}, mes_id: {msg_id}")
+        log_with_timestamp(f"Received message from {socket.remote_address}, mes_id: {msg_id}")
         samples = data["samples"]
 
-        return np.array(samples, dtype=np.float32)
+        return 0, np.array(samples, dtype=np.float32)
 
 
 def main():
