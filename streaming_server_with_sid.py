@@ -75,8 +75,6 @@ def load_speaker_embedding_model():
     
 extractor = load_speaker_embedding_model()
 manager = sherpa_onnx.SpeakerEmbeddingManager(extractor.dim)
-speaker = None
-
 
 def format_timestamps(timestamps: List[float]) -> List[str]:
     return ["{:.3f}".format(t) for t in timestamps]
@@ -155,6 +153,9 @@ class StreamingServer(object):
         # self.window_size = self.vad_config.silero_vad.window_size #512-32ms
         self.window_size = 480 #30ms
 
+        # 对话总结初始化
+        self.summary = {}
+
     async def stream_consumer_task(self):
         """This function extracts streams from the queue, batches them up, sends
         them to the neural network model for computation and decoding.
@@ -209,16 +210,6 @@ class StreamingServer(object):
         for i in range(self.nn_pool_size):
             tasks.append(asyncio.create_task(self.stream_consumer_task()))
 
-
-        # async with websockets.serve(
-        #     self.handle_connection,
-        #     host="0.0.0.0",
-        #     port=port,
-        # ):
-        #     print(f"WebSocket server started on ws://localhost:{port}")
-        #     await asyncio.Future()  # run forever
-
-        # await asyncio.gather(*tasks)  # not reachable
         TRANSLATE_SERVER_URI = "ws://localhost:8765"
         try:
             async with websockets.connect(TRANSLATE_SERVER_URI) as translate_socket:
@@ -232,18 +223,31 @@ class StreamingServer(object):
                 await translate_socket.send(json.dumps(register_msg))
                 print(f"[INFO] Sent registration: {register_msg}")
 
-                async with websockets.serve(
-                    lambda ws: self.handle_connection(ws, translate_socket),
-                    host="0.0.0.0",
-                    port=port,
-                ):
-                    print(f"[INFO] WebSocket server started on ws://localhost:{port}")
-                    await asyncio.Future()  # run forever
+                #对话总结
+                SUMMARY_SERVER_URI = "ws://localhost:8764"
+                async with websockets.connect(SUMMARY_SERVER_URI) as summary_socket:
+                    print("[INFO] Connected to summary server")
+                    # 发送注册消息（客户端启动时自动发送）
+                    register_msg = {
+                        "id": "client_000",
+                        "type": "Server_STT",
+                        "des": "STT"
+                    }
+                    await summary_socket.send(json.dumps(register_msg))
+                    print(f"[INFO] Sent registration: {register_msg}")
 
-                await asyncio.gather(*tasks)  # not reachable
+                    async with websockets.serve(
+                        lambda ws: self.handle_connection(ws, translate_socket, summary_socket),
+                        host="0.0.0.0",
+                        port=port,
+                    ):
+                        print(f"[INFO] WebSocket server started on ws://localhost:{port}")
+                        await asyncio.Future()  # run forever
+
+                    await asyncio.gather(*tasks)  # not reachable
 
         except ConnectionRefusedError:
-            print("Connection refused. Is the WebSocket server running at ws://localhost:8765?")
+            print("Connection refused. Is the WebSocket server running at ws://localhost:8765 and 8764?")
         except websockets.ConnectionClosed as e:
             print(f"Connection closed unexpectedly: {e}")
         except Exception as e:
@@ -252,7 +256,8 @@ class StreamingServer(object):
     async def handle_connection(
         self,
         socket: websockets.WebSocketServerProtocol,
-        translate_socket
+        translate_socket,
+        summary_socket
     ):
         """Receive audio samples from the client, process it, and send
         decoding result back to the client.
@@ -262,7 +267,7 @@ class StreamingServer(object):
             The socket for communicating with the client.
         """
         try:
-            await self.handle_connection_impl(socket,translate_socket)
+            await self.handle_connection_impl(socket,translate_socket,summary_socket)
         except websockets.exceptions.ConnectionClosedError:
             logging.info(f"{socket.remote_address} disconnected")
         finally:
@@ -277,7 +282,8 @@ class StreamingServer(object):
     async def handle_connection_impl(
         self,
         socket: websockets.WebSocketServerProtocol,
-        translate_socket
+        translate_socket,
+        summary_socket        
     ):
         """Receive audio samples from the client, process it, and send
         decoding result back to the client.
@@ -290,21 +296,18 @@ class StreamingServer(object):
             f"Connected: {socket.remote_address}. "
             f"Number of connections: {self.current_active_connections}/{self.max_active_connections}"  # noqa
         )
-
+        # init
         stream = self.recognizer.create_stream()
         segment = 0
-        conn_id = str(socket.remote_address)
-        if conn_id not in self.speakers:
-            self.speakers[conn_id] = None  # 初始未注册
-        buffer = np.array([], dtype=np.float32)
-        buffer_comp = np.array([], dtype=np.float32)
+         
+        buffer = np.array([], dtype=np.float32) #vad处理音频流
+        buffer_comp = np.array([], dtype=np.float32) #完整音频流，修复vad检测精度差问题
 
-        #注册消息
+        #注册消息 保存客户端信息
         message = await socket.recv()
         data = json.loads(message)
         log_with_timestamp(f"Received message from {socket.remote_address}")
                 
-        # 如果是注册消息，保存客户端信息
         if "id" in data and "type" in data and "des" in data:
             client_info = {
                 "websocket": socket,
@@ -313,6 +316,11 @@ class StreamingServer(object):
                 "des": data["des"]
             }
             print(f"[INFO] Client registered: {client_info}")
+            conn_id = data["id"]
+            if conn_id not in self.speakers:
+                self.speakers[conn_id] = None  
+            if conn_id not in self.summary:
+                self.summary[conn_id] = []
 
         while True:
             code, data = await self.recv_audio_samples(socket)
@@ -322,6 +330,14 @@ class StreamingServer(object):
                 if action == 'change_host':
                     self.speakers[conn_id] = None
                     log_with_timestamp(f"[INFO] Host changed by {conn_id}")
+                if action == 'generate_summary':
+                    message = {
+                        "id" : "client_000",
+                        "content": ';'.join(self.summary[conn_id])
+                    }
+                    log_with_timestamp(f"[INFO] Meeting summary generation requested by {conn_id}")
+                    await summary_socket.send(json.dumps(message))
+                    self.summary[conn_id] = []
             else:
                 samples = data
                 request_time = time.time()
@@ -350,7 +366,6 @@ class StreamingServer(object):
                         
                         if result != '':
                             # 处理VAD分段
-                            
                             vad_segments = []
                             while not self.vad.empty():
                                 vad_samples = self.vad.front.samples
@@ -435,6 +450,7 @@ class StreamingServer(object):
                                                 "process_time" : time.time() -request_time,
                                                 "speaker" : 0
                                             }
+                                    self.summary[conn_id].append(result)
                         
   
     async def recv_audio_samples(
