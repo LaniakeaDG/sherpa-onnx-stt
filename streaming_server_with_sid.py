@@ -269,13 +269,14 @@ class StreamingServer(object):
         try:
             await self.handle_connection_impl(socket,translate_socket,summary_socket)
         except websockets.exceptions.ConnectionClosedError:
-            logging.info(f"{socket.remote_address} disconnected")
+            print(f"{socket.remote_address} disconnected")
         finally:
             # Decrement so that it can accept new connections
             self.current_active_connections -= 1
 
-            logging.info(
-                f"Disconnected: {socket.remote_address}. "
+            print(
+                f"Disconnected: {socket.remote_address}. ")
+            print(
                 f"Number of connections: {self.current_active_connections}/{self.max_active_connections}"  # noqa
             )
 
@@ -292,8 +293,10 @@ class StreamingServer(object):
           socket:
             The socket for communicating with the client.
         """
-        logging.info(
-            f"Connected: {socket.remote_address}. "
+        self.current_active_connections += 1
+        print(
+            f"Connected: {socket.remote_address}. ")
+        print(
             f"Number of connections: {self.current_active_connections}/{self.max_active_connections}"  # noqa
         )
         # init
